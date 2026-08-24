@@ -88,6 +88,43 @@ OpenTelemetry and its Generative AI semantic conventions will be used where
 stable. Product-level browser events will retain a small, versioned schema so
 the application contract does not depend on experimental browser conventions.
 
+## Run the MVP
+
+```bash
+docker compose up --build
+LWO_API_KEY=replace-with-a-random-secret python3 examples/seed_trace.py
+```
+
+Open `http://127.0.0.1:8080` to inspect the example trace. API documentation is
+available at `http://127.0.0.1:8080/docs`.
+
+When `LWO_API_KEY` is configured, API clients must send it as a Bearer token.
+The dashboard asks for the key on its first authenticated request and keeps it
+in browser session storage only.
+
+The collector accepts batches at `POST /v1/events`:
+
+```json
+{
+  "events": [{
+    "schema_version": "0.1",
+    "timestamp": "2026-08-24T12:00:00Z",
+    "event_type": "gen_ai.chat",
+    "trace_id": "0123456789abcdef0123456789abcdef",
+    "span_id": "0123456789abcdef",
+    "service": "example-agent",
+    "duration_ms": 520,
+    "status": "ok",
+    "attributes": {
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-5",
+      "gen_ai.usage.input_tokens": 100,
+      "gen_ai.usage.output_tokens": 50
+    }
+  }]
+}
+```
+
 ## License
 
 MIT

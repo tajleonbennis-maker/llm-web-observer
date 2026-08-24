@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LLM Web Observer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>LLM Web Observer</h1>
+      <p>Interaction, agent, model, and tool traces</p>
+    </div>
+    <button id="refresh" title="Refresh traces" aria-label="Refresh traces">↻</button>
+  </header>
+  <main>
+    <section id="metrics" class="metrics" aria-label="Telemetry summary"></section>
+    <div class="workspace">
+      <aside>
+        <div class="section-title">Recent traces</div>
+        <div id="traces" class="trace-list"></div>
+      </aside>
+      <section class="detail">
+        <div id="empty" class="empty">Select a trace to inspect its execution.</div>
+        <div id="trace-detail" hidden>
+          <div class="detail-head">
+            <div>
+              <span class="eyebrow">Trace</span>
+              <h2 id="trace-title"></h2>
+            </div>
+            <span id="trace-status" class="status"></span>
+          </div>
+          <div id="trace-meta" class="trace-meta"></div>
+          <div class="timeline-head"><span>Operation</span><span>Timeline</span><span>Duration</span></div>
+          <div id="timeline" class="timeline"></div>
+          <div id="event-panel" class="event-panel" hidden></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-web-observer-sdk"
+version = "0.1.0"
+description = "Python instrumentation SDK for LLM Web Observer"
+requires-python = ">=3.11"
+
+[tool.hatch.build.targets.wheel]
+packages = ["llm_web_observer_sdk"]
+

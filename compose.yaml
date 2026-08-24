@@ -1,0 +1,20 @@
+services:
+  observer:
+    build: .
+    environment:
+      LWO_DATABASE: /data/observer.db
+      LWO_API_KEY: ${LWO_API_KEY:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - observer-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  observer-data:
+
