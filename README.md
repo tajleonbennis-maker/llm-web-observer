@@ -9,8 +9,15 @@ but the project is application-agnostic.
 
 ## Project Status
 
-Early design and implementation. Interfaces and storage schemas are not stable
-yet.
+Experimental runtime deployment. DeepTutor traffic is currently captured through
+an Nginx browser collector and an outbound mitmproxy gateway. Interfaces and
+storage schemas are not stable yet.
+
+Current capabilities include browser UA/fingerprint capture, full conversation
+context and model response audit, OpenRouter model/token/latency reporting,
+gateway log/redact/block policies, raw trace inspection, and automated server
+deployment. See [the technical guide](docs/TECHNICAL.md) for the architecture,
+security boundaries, APIs, deployment, and verification procedure.
 
 ## Scope
 
@@ -61,8 +68,9 @@ span_id
 
 ## Privacy
 
-Prompt and response content is not collected by default. Deployments will be
-able to choose one of three content policies:
+The generic SDK remains metadata-oriented. The current DeepTutor experimental
+integration explicitly collects prompt context and responses for runtime audit.
+Production deployments must choose and enforce one of three content policies:
 
 - `metadata-only`: record counts, timings, hashes, and sizes.
 - `redacted`: record content after configured redaction.

@@ -1,0 +1,40 @@
+name: Deploy Observer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "integrations/**"
+      - "deploy/**"
+      - "Dockerfile"
+      - "pyproject.toml"
+
+concurrency:
+  group: observer-production
+  cancel-in-progress: false
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --extra test pytest -q
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 0700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+      - name: Deploy and verify
+        env:
+          SURFACE_HOST: ${{ secrets.DEPLOY_HOST }}
+          SURFACE_USER: ${{ secrets.DEPLOY_USER }}
+          SURFACE_IDENTITY_FILE: /home/runner/.ssh/id_ed25519
+          SURFACE_KNOWN_HOSTS: /home/runner/.ssh/known_hosts
+        run: deploy/deploy.sh
