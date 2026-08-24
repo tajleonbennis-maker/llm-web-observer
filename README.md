@@ -19,6 +19,9 @@ gateway log/redact/block policies, raw trace inspection, and automated server
 deployment. See [the technical guide](docs/TECHNICAL.md) for the architecture,
 security boundaries, APIs, deployment, and verification procedure.
 
+中文项目文章与完整实验记录见
+[《从用户点击到 LLM 回复》](docs/ARTICLE_ZH.md)。
+
 ## Scope
 
 The first version will provide:
