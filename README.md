@@ -98,9 +98,8 @@ LWO_API_KEY=replace-with-a-random-secret python3 examples/seed_trace.py
 Open `http://127.0.0.1:8080` to inspect the example trace. API documentation is
 available at `http://127.0.0.1:8080/docs`.
 
-When `LWO_API_KEY` is configured, API clients must send it as a Bearer token.
-The dashboard asks for the key on its first authenticated request and keeps it
-in browser session storage only.
+When `LWO_API_KEY` is configured, telemetry writers must send it as a Bearer
+token. The dashboard and read-only trace APIs remain directly accessible.
 
 The collector accepts batches at `POST /v1/events`:
 

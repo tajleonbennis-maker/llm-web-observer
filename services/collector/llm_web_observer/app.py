@@ -31,18 +31,18 @@ def create_app(database_path: str | None = None) -> FastAPI:
         accepted = app.state.store.ingest(batch.events)
         return IngestResult(accepted=accepted, trace_ids=sorted({event.trace_id for event in batch.events}))
 
-    @app.get("/v1/traces", dependencies=[Depends(authorize)])
+    @app.get("/v1/traces")
     def traces(limit: int = Query(default=100, ge=1, le=500)) -> list[dict]:
         return app.state.store.traces(limit)
 
-    @app.get("/v1/traces/{trace_id}", dependencies=[Depends(authorize)])
+    @app.get("/v1/traces/{trace_id}")
     def trace(trace_id: str) -> dict:
         events = app.state.store.trace(trace_id)
         if not events:
             raise HTTPException(status_code=404, detail="Trace not found")
         return {"trace_id": trace_id, "events": events}
 
-    @app.get("/v1/metrics", dependencies=[Depends(authorize)])
+    @app.get("/v1/metrics")
     def metrics() -> dict:
         return app.state.store.metrics()
 
@@ -55,4 +55,3 @@ def create_app(database_path: str | None = None) -> FastAPI:
 
 
 app = create_app()
-

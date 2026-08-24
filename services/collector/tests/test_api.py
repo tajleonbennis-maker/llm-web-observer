@@ -55,4 +55,5 @@ def test_api_key(tmp_path, monkeypatch):
     assert client.post(
         "/v1/events", json={"events": [event()]}, headers={"Authorization": "Bearer test-secret"}
     ).status_code == 200
-
+    assert client.get("/v1/traces").status_code == 200
+    assert client.get("/v1/metrics").status_code == 200
