@@ -122,6 +122,18 @@ def test_conversations_hide_internal_llm_tasks_by_default(tmp_path):
     assert rows[0]["call_kind"] == "internal.recommendations"
 
 
+def test_conversation_projection_repairs_historical_utf8_mojibake(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "observer.db")))
+    broken = "上海当前天气如下：".encode("utf-8").decode("latin-1")
+    payload = event(attributes={
+        "lwo.user.message": "上海天气",
+        "lwo.assistant.message": broken,
+        "lwo.call.kind": "user.chat",
+    })
+    assert client.post("/v1/events", json={"events": [payload]}).status_code == 200
+    assert client.get("/v1/conversations").json()[0]["response"] == "上海当前天气如下："
+
+
 def test_policy_crud_requires_api_key(tmp_path, monkeypatch):
     monkeypatch.setenv("LWO_API_KEY", "admin-secret")
     client = TestClient(create_app(str(tmp_path / "observer.db")))

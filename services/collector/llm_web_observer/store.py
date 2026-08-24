@@ -64,6 +64,23 @@ CREATE INDEX IF NOT EXISTS idx_client_context_seen ON client_contexts(seen_at DE
 """
 
 
+def repair_mojibake(value: Any) -> Any:
+    if isinstance(value, list):
+        return [repair_mojibake(item) for item in value]
+    if isinstance(value, dict):
+        return {key: repair_mojibake(item) for key, item in value.items()}
+    if not isinstance(value, str):
+        return value
+    try:
+        repaired = value.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return value
+    original_cjk = sum("\u3400" <= char <= "\u9fff" for char in value)
+    repaired_cjk = sum("\u3400" <= char <= "\u9fff" for char in repaired)
+    controls = sum("\u0080" <= char <= "\u009f" for char in value)
+    return repaired if repaired_cjk > original_cjk and controls else value
+
+
 class EventStore:
     def __init__(self, path: str | Path):
         self.path = str(path)
@@ -173,14 +190,14 @@ class EventStore:
             item.update({
                 "username": attributes.get("enduser.name"),
                 "source_ip": attributes.get("client.address"),
-                "message": attributes.get("lwo.user.message"),
-                "response": attributes.get("lwo.assistant.message"),
+                "message": repair_mojibake(attributes.get("lwo.user.message")),
+                "response": repair_mojibake(attributes.get("lwo.assistant.message")),
                 "model": attributes.get("gen_ai.request.model"),
                 "input_tokens": attributes.get("gen_ai.usage.input_tokens"),
                 "output_tokens": attributes.get("gen_ai.usage.output_tokens"),
                 "policy_action": attributes.get("lwo.policy.action", "allow"),
                 "policy_rule": attributes.get("lwo.policy.rule"),
-                "context_messages": attributes.get("lwo.context.messages", []),
+                "context_messages": repair_mojibake(attributes.get("lwo.context.messages", [])),
                 "fingerprint": attributes.get("client.fingerprint"),
                 "user_agent": attributes.get("user_agent.original"),
                 "browser": attributes.get("client.browser"),

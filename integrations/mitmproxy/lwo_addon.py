@@ -18,6 +18,14 @@ started: dict[str, float] = {}
 decisions: dict[str, dict] = {}
 
 
+def _utf8_content(message) -> str:
+    content = message.content or b""
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return message.get_text(strict=False) or ""
+
+
 def _context_messages(body: dict) -> list[dict]:
     result = []
     for message in (body.get("messages") or [])[-100:]:
@@ -79,7 +87,7 @@ def request(flow: http.HTTPFlow) -> None:
         return
     started[flow.id] = time.monotonic()
     try:
-        body = json.loads(flow.request.get_text(strict=False) or "{}")
+        body = json.loads(_utf8_content(flow.request) or "{}")
     except (ValueError, TypeError):
         body = {}
     index, message = _last_user_message(body)
@@ -121,7 +129,7 @@ def request(flow: http.HTTPFlow) -> None:
 
 
 def _response_data(flow: http.HTTPFlow) -> tuple[str, dict]:
-    text = flow.response.get_text(strict=False) or ""
+    text = _utf8_content(flow.response)
     usage: dict = {}
     answer = ""
     if "text/event-stream" in flow.response.headers.get("content-type", ""):
