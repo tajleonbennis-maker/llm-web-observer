@@ -187,15 +187,19 @@ class EventStore:
             call_kind = self._call_kind(attributes)
             if not include_internal and call_kind != "user.chat":
                 continue
+            response = repair_mojibake(attributes.get("lwo.assistant.message"))
+            policy_action = attributes.get("lwo.policy.action", "allow")
+            if not include_internal and not response and policy_action != "block":
+                continue
             item.update({
                 "username": attributes.get("enduser.name"),
                 "source_ip": attributes.get("client.address"),
                 "message": repair_mojibake(attributes.get("lwo.user.message")),
-                "response": repair_mojibake(attributes.get("lwo.assistant.message")),
+                "response": response,
                 "model": attributes.get("gen_ai.request.model"),
                 "input_tokens": attributes.get("gen_ai.usage.input_tokens"),
                 "output_tokens": attributes.get("gen_ai.usage.output_tokens"),
-                "policy_action": attributes.get("lwo.policy.action", "allow"),
+                "policy_action": policy_action,
                 "policy_rule": attributes.get("lwo.policy.rule"),
                 "context_messages": repair_mojibake(attributes.get("lwo.context.messages", [])),
                 "fingerprint": attributes.get("client.fingerprint"),

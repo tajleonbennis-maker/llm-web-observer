@@ -122,6 +122,19 @@ def test_conversations_hide_internal_llm_tasks_by_default(tmp_path):
     assert rows[0]["call_kind"] == "internal.recommendations"
 
 
+def test_conversations_hide_empty_agent_steps(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "observer.db")))
+    step = event(attributes={
+        "lwo.user.message": "Weather in Shanghai",
+        "lwo.assistant.message": "",
+        "lwo.call.kind": "user.chat",
+        "lwo.policy.action": "allow",
+    })
+    assert client.post("/v1/events", json={"events": [step]}).status_code == 200
+    assert client.get("/v1/conversations").json() == []
+    assert len(client.get("/v1/conversations?include_internal=true").json()) == 1
+
+
 def test_conversation_projection_repairs_historical_utf8_mojibake(tmp_path):
     client = TestClient(create_app(str(tmp_path / "observer.db")))
     broken = "上海当前天气如下：".encode("utf-8").decode("latin-1")
