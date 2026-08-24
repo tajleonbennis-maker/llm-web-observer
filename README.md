@@ -1,0 +1,93 @@
+# LLM Web Observer
+
+End-to-end observability and audit trails for multi-user LLM Web applications.
+
+LLM Web Observer connects a user's browser interaction to the backend request,
+agent execution, context construction, retrieval, model calls, tool calls, and
+streamed response that followed it. DeepTutor will be the first integration,
+but the project is application-agnostic.
+
+## Project Status
+
+Early design and implementation. Interfaces and storage schemas are not stable
+yet.
+
+## Scope
+
+The first version will provide:
+
+- Browser interaction tracing for meaningful product actions.
+- W3C Trace Context propagation across HTTP and WebSocket boundaries.
+- FastAPI/Python and Node.js instrumentation.
+- Agent, retrieval, LLM, and tool-call spans.
+- Model, provider, token, latency, retry, error, and cost metadata.
+- Conversation and trace waterfall views.
+- Configurable sampling, redaction, and retention.
+- OTLP ingestion and an API for custom events.
+- An independently deployable collector, storage layer, and dashboard.
+
+## Non-Goals
+
+The initial system does not depend on or integrate with BuildProof, host audit
+agents, deployment orchestrators, or infrastructure monitoring. Those systems
+may be connected later through optional adapters.
+
+## Trace Model
+
+```text
+browser interaction
+  -> HTTP or WebSocket request
+    -> agent run
+      -> memory and context loading
+      -> retrieval
+      -> model call
+      -> tool call
+      -> model call
+    -> streamed response
+  -> browser render
+```
+
+Core correlation identifiers:
+
+```text
+tenant_id
+user_id_hash
+session_id
+conversation_id
+interaction_id
+trace_id
+span_id
+```
+
+## Privacy
+
+Prompt and response content is not collected by default. Deployments will be
+able to choose one of three content policies:
+
+- `metadata-only`: record counts, timings, hashes, and sizes.
+- `redacted`: record content after configured redaction.
+- `full-content`: explicit opt-in for authorized debugging environments.
+
+The system will support field-level redaction, secret detection, tenant
+isolation, retention limits, deletion, and access auditing.
+
+## Planned Components
+
+```text
+packages/browser-sdk/
+packages/node-sdk/
+packages/python-sdk/
+services/collector/
+services/api/
+services/dashboard/
+deploy/
+docs/
+```
+
+OpenTelemetry and its Generative AI semantic conventions will be used where
+stable. Product-level browser events will retain a small, versioned schema so
+the application contract does not depend on experimental browser conventions.
+
+## License
+
+MIT

@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+dist/
+build/
+coverage/
+.pytest_cache/
+.next/
+*.log
