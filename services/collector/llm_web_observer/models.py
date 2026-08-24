@@ -45,6 +45,17 @@ class IngestResult(BaseModel):
     trace_ids: list[str]
 
 
+class ClientContext(BaseModel):
+    fingerprint: str = Field(min_length=16, max_length=128)
+    session_id: str = Field(min_length=8, max_length=160)
+    user_agent: str = Field(min_length=1, max_length=1000)
+    browser: str | None = Field(default=None, max_length=120)
+    platform: str | None = Field(default=None, max_length=160)
+    language: str | None = Field(default=None, max_length=40)
+    screen: str | None = Field(default=None, max_length=40)
+    timezone: str | None = Field(default=None, max_length=80)
+
+
 class PolicyRule(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     pattern: str = Field(min_length=1, max_length=500)

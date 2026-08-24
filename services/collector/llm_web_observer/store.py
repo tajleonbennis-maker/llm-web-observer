@@ -47,6 +47,20 @@ CREATE TABLE IF NOT EXISTS policies (
     enabled INTEGER NOT NULL DEFAULT 1,
     description TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS client_contexts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    seen_at TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    source_ip TEXT,
+    user_agent TEXT NOT NULL,
+    browser TEXT,
+    platform TEXT,
+    language TEXT,
+    screen TEXT,
+    timezone TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_client_context_seen ON client_contexts(seen_at DESC);
 """
 
 
@@ -151,9 +165,41 @@ class EventStore:
                 "output_tokens": attributes.get("gen_ai.usage.output_tokens"),
                 "policy_action": attributes.get("lwo.policy.action", "allow"),
                 "policy_rule": attributes.get("lwo.policy.rule"),
+                "context_messages": attributes.get("lwo.context.messages", []),
+                "fingerprint": attributes.get("client.fingerprint"),
+                "user_agent": attributes.get("user_agent.original"),
+                "browser": attributes.get("client.browser"),
+                "platform": attributes.get("client.platform"),
+                "language": attributes.get("client.language"),
+                "screen": attributes.get("client.screen"),
+                "timezone": attributes.get("client.timezone"),
+                "identity_confidence": attributes.get("client.identity.confidence"),
             })
             result.append(item)
         return result
+
+    def record_client(self, context: dict[str, Any], source_ip: str | None) -> dict[str, Any]:
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """INSERT INTO client_contexts
+                   (seen_at,fingerprint,session_id,source_ip,user_agent,browser,platform,language,screen,timezone)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (now, context["fingerprint"], context["session_id"], source_ip, context["user_agent"],
+                 context.get("browser"), context.get("platform"), context.get("language"),
+                 context.get("screen"), context.get("timezone")),
+            )
+        return {**context, "source_ip": source_ip, "seen_at": now}
+
+    def latest_client(self, max_age_seconds: int = 300) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT * FROM client_contexts
+                   WHERE seen_at >= datetime('now', ?)
+                   ORDER BY seen_at DESC LIMIT 1""",
+                (f"-{max_age_seconds} seconds",),
+            ).fetchone()
+        return dict(row) if row else None
 
     def policies(self) -> list[dict[str, Any]]:
         with self._connect() as connection:

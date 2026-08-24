@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import re
 import threading
@@ -15,6 +16,18 @@ if OBSERVER.endswith("/v1/events"):
 API_KEY = os.environ.get("LWO_API_KEY", "")
 started: dict[str, float] = {}
 decisions: dict[str, dict] = {}
+
+
+def _context_messages(body: dict) -> list[dict]:
+    result = []
+    for message in (body.get("messages") or [])[-100:]:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content", "")
+        if isinstance(content, list):
+            content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
+        result.append({"role": str(message.get("role", "unknown")), "content": str(content)})
+    return result
 
 
 def _json(url: str, *, payload: dict | None = None) -> object:
@@ -59,7 +72,11 @@ def request(flow: http.HTTPFlow) -> None:
     except (ValueError, TypeError):
         body = {}
     index, message = _last_user_message(body)
-    decision = {"action": "allow", "rule": None, "message": message, "model": body.get("model")}
+    context = _context_messages(body)
+    seed = next((item["content"] for item in context if item["role"] == "user"), message)
+    conversation_id = hashlib.sha256(f"deeptutor:{seed}".encode()).hexdigest()[:32]
+    decision = {"action": "allow", "rule": None, "message": message, "model": body.get("model"),
+                "context": context, "conversation_id": conversation_id}
     try:
         policies = _json(f"{OBSERVER}/v1/policies")
     except Exception:
@@ -120,10 +137,19 @@ def response(flow: http.HTTPFlow) -> None:
         return
     decision = decisions.pop(flow.id, {})
     answer, usage = _response_data(flow)
+    try:
+        client = _json(f"{OBSERVER}/v1/client-context/latest?max_age=300")
+    except Exception:
+        client = {}
     attributes = {"gen_ai.provider.name": "openrouter", "gen_ai.request.model": decision.get("model"),
         "http.response.status_code": flow.response.status_code, "lwo.user.message": decision.get("message"),
         "lwo.assistant.message": answer, "lwo.policy.action": decision.get("action", "allow"),
-        "lwo.policy.rule": decision.get("rule")}
+        "lwo.policy.rule": decision.get("rule"), "lwo.context.messages": decision.get("context", []),
+        "client.address": client.get("source_ip"), "client.fingerprint": client.get("fingerprint"),
+        "user_agent.original": client.get("user_agent"), "client.browser": client.get("browser"),
+        "client.platform": client.get("platform"), "client.language": client.get("language"),
+        "client.screen": client.get("screen"), "client.timezone": client.get("timezone"),
+        "client.identity.confidence": "temporal" if client else None}
     attributes = {key: value for key, value in attributes.items() if value is not None}
     for source, target in (("prompt_tokens", "gen_ai.usage.input_tokens"),
                            ("completion_tokens", "gen_ai.usage.output_tokens"),
@@ -132,7 +158,9 @@ def response(flow: http.HTTPFlow) -> None:
             attributes[target] = usage[source]
     event = {"schema_version": "0.1", "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "event_type": "gen_ai.chat", "trace_id": uuid.uuid4().hex, "span_id": uuid.uuid4().hex[:16],
-        "service": "deeptutor", "duration_ms": round((time.monotonic()-started.pop(flow.id,time.monotonic()))*1000,2),
+        "service": "deeptutor", "conversation_id": decision.get("conversation_id"),
+        "session_id": client.get("session_id"),
+        "duration_ms": round((time.monotonic()-started.pop(flow.id,time.monotonic()))*1000,2),
         "status": "ok" if flow.response.status_code < 400 else "error", "attributes": attributes}
     threading.Thread(target=_send, args=(event,), daemon=True).start()
 

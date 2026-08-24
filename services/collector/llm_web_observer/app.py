@@ -3,11 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .models import EventBatch, IngestResult, PolicyRule, PolicyRuleRecord
+from .models import ClientContext, EventBatch, IngestResult, PolicyRule, PolicyRuleRecord
 from .store import EventStore
 
 STATIC = Path(__file__).with_name("static")
@@ -49,6 +49,16 @@ def create_app(database_path: str | None = None) -> FastAPI:
     @app.get("/v1/conversations")
     def conversations(limit: int = Query(default=100, ge=1, le=500)) -> list[dict]:
         return app.state.store.conversations(limit)
+
+    @app.post("/v1/client-context")
+    def record_client(context: ClientContext, request: Request) -> dict:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        source_ip = forwarded or (request.client.host if request.client else None)
+        return app.state.store.record_client(context.model_dump(), source_ip)
+
+    @app.get("/v1/client-context/latest", dependencies=[Depends(authorize)])
+    def latest_client(max_age: int = Query(default=300, ge=10, le=3600)) -> dict:
+        return app.state.store.latest_client(max_age) or {}
 
     @app.get("/v1/policies", response_model=list[PolicyRuleRecord])
     def policies() -> list[dict]:
