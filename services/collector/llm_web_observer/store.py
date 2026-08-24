@@ -142,7 +142,19 @@ class EventStore:
             ).fetchall()
         return {**dict(totals), "models": [dict(row) for row in models]}
 
-    def conversations(self, limit: int = 100) -> list[dict[str, Any]]:
+    @staticmethod
+    def _call_kind(attributes: dict[str, Any]) -> str:
+        explicit = attributes.get("lwo.call.kind")
+        if explicit:
+            return str(explicit)
+        message = str(attributes.get("lwo.user.message") or "")
+        if message.startswith("# Recent activity"):
+            return "internal.recommendations"
+        if message.startswith("Generate a title for this conversation"):
+            return "internal.title"
+        return "user.chat" if message else "internal.unknown"
+
+    def conversations(self, limit: int = 100, include_internal: bool = False) -> list[dict[str, Any]]:
         with self._connect() as connection:
             rows = connection.execute(
                 """SELECT id, timestamp, trace_id, service, status, tenant_id, user_id_hash,
@@ -155,6 +167,9 @@ class EventStore:
         for row in rows:
             item = dict(row)
             attributes = json.loads(item.pop("attributes_json"))
+            call_kind = self._call_kind(attributes)
+            if not include_internal and call_kind != "user.chat":
+                continue
             item.update({
                 "username": attributes.get("enduser.name"),
                 "source_ip": attributes.get("client.address"),
@@ -174,6 +189,7 @@ class EventStore:
                 "screen": attributes.get("client.screen"),
                 "timezone": attributes.get("client.timezone"),
                 "identity_confidence": attributes.get("client.identity.confidence"),
+                "call_kind": call_kind,
             })
             result.append(item)
         return result

@@ -30,6 +30,17 @@ def _context_messages(body: dict) -> list[dict]:
     return result
 
 
+def _call_kind(context: list[dict], message: str) -> str:
+    system = "\n".join(item["content"] for item in context if item["role"] == "system").lower()
+    if "propose the three things a learner should explore next" in system or message.startswith("# Recent activity"):
+        return "internal.recommendations"
+    if message.startswith("Generate a title for this conversation"):
+        return "internal.title"
+    if not message:
+        return "internal.unknown"
+    return "user.chat"
+
+
 def _json(url: str, *, payload: dict | None = None) -> object:
     headers = {"Content-Type": "application/json"}
     if API_KEY:
@@ -73,15 +84,16 @@ def request(flow: http.HTTPFlow) -> None:
         body = {}
     index, message = _last_user_message(body)
     context = _context_messages(body)
+    call_kind = _call_kind(context, message)
     seed = next((item["content"] for item in context if item["role"] == "user"), message)
     conversation_id = hashlib.sha256(f"deeptutor:{seed}".encode()).hexdigest()[:32]
     decision = {"action": "allow", "rule": None, "message": message, "model": body.get("model"),
-                "context": context, "conversation_id": conversation_id}
+                "context": context, "conversation_id": conversation_id, "call_kind": call_kind}
     try:
         policies = _json(f"{OBSERVER}/v1/policies")
     except Exception:
         policies = []
-    for policy in policies:
+    for policy in policies if call_kind == "user.chat" else []:
         if not policy.get("enabled") or not _match(message, policy):
             continue
         decision.update(action=policy["action"], rule=policy["name"])
@@ -144,7 +156,8 @@ def response(flow: http.HTTPFlow) -> None:
     attributes = {"gen_ai.provider.name": "openrouter", "gen_ai.request.model": decision.get("model"),
         "http.response.status_code": flow.response.status_code, "lwo.user.message": decision.get("message"),
         "lwo.assistant.message": answer, "lwo.policy.action": decision.get("action", "allow"),
-        "lwo.policy.rule": decision.get("rule"), "lwo.context.messages": decision.get("context", []),
+        "lwo.policy.rule": decision.get("rule"), "lwo.call.kind": decision.get("call_kind", "user.chat"),
+        "lwo.context.messages": decision.get("context", []),
         "client.address": client.get("source_ip"), "client.fingerprint": client.get("fingerprint"),
         "user_agent.original": client.get("user_agent"), "client.browser": client.get("browser"),
         "client.platform": client.get("platform"), "client.language": client.get("language"),

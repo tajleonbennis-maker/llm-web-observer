@@ -47,8 +47,8 @@ def create_app(database_path: str | None = None) -> FastAPI:
         return app.state.store.metrics()
 
     @app.get("/v1/conversations")
-    def conversations(limit: int = Query(default=100, ge=1, le=500)) -> list[dict]:
-        return app.state.store.conversations(limit)
+    def conversations(limit: int = Query(default=100, ge=1, le=500), include_internal: bool = False) -> list[dict]:
+        return app.state.store.conversations(limit, include_internal)
 
     @app.post("/v1/client-context")
     def record_client(context: ClientContext, request: Request) -> dict:

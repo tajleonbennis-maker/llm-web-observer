@@ -105,6 +105,23 @@ def test_client_context_records_forwarded_ip_and_latest(tmp_path):
     assert latest["browser"] == "Safari"
 
 
+def test_conversations_hide_internal_llm_tasks_by_default(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "observer.db")))
+    internal = event(
+        trace_id="c" * 32,
+        span_id="d" * 16,
+        attributes={
+            "lwo.user.message": "# Recent activity\nPropose the three things worth exploring next.",
+            "lwo.assistant.message": "[]",
+            "lwo.call.kind": "internal.recommendations",
+        },
+    )
+    assert client.post("/v1/events", json={"events": [internal]}).status_code == 200
+    assert client.get("/v1/conversations").json() == []
+    rows = client.get("/v1/conversations?include_internal=true").json()
+    assert rows[0]["call_kind"] == "internal.recommendations"
+
+
 def test_policy_crud_requires_api_key(tmp_path, monkeypatch):
     monkeypatch.setenv("LWO_API_KEY", "admin-secret")
     client = TestClient(create_app(str(tmp_path / "observer.db")))
