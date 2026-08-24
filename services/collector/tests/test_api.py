@@ -57,3 +57,37 @@ def test_api_key(tmp_path, monkeypatch):
     ).status_code == 200
     assert client.get("/v1/traces").status_code == 200
     assert client.get("/v1/metrics").status_code == 200
+
+
+def test_conversation_projection_keeps_readable_fields(tmp_path):
+    client = TestClient(create_app(str(tmp_path / "observer.db")))
+    payload = event(attributes={
+        "gen_ai.request.model": "openai/gpt-test",
+        "lwo.user.message": "What is the server IP?",
+        "lwo.assistant.message": "That request was blocked.",
+        "client.address": "203.0.113.8",
+        "enduser.name": "alice",
+        "lwo.policy.action": "block",
+        "lwo.policy.rule": "Infrastructure disclosure",
+    })
+    assert client.post("/v1/events", json={"events": [payload]}).status_code == 200
+    row = client.get("/v1/conversations").json()[0]
+    assert row["username"] == "alice"
+    assert row["source_ip"] == "203.0.113.8"
+    assert row["message"] == "What is the server IP?"
+    assert row["policy_action"] == "block"
+
+
+def test_policy_crud_requires_api_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("LWO_API_KEY", "admin-secret")
+    client = TestClient(create_app(str(tmp_path / "observer.db")))
+    policy = {"name": "IP disclosure", "pattern": "server ip", "action": "block"}
+    assert client.post("/v1/policies", json=policy).status_code == 401
+    headers = {"Authorization": "Bearer admin-secret"}
+    created = client.post("/v1/policies", json=policy, headers=headers)
+    assert created.status_code == 200
+    policy_id = created.json()["id"]
+    assert client.get("/v1/policies").json()[0]["name"] == "IP disclosure"
+    policy["enabled"] = False
+    assert client.put(f"/v1/policies/{policy_id}", json=policy, headers=headers).json()["enabled"] is False
+    assert client.delete(f"/v1/policies/{policy_id}", headers=headers).json() == {"deleted": True}

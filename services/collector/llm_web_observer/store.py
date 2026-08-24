@@ -36,6 +36,17 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_trace ON events(trace_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_received ON events(received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_conversation ON events(conversation_id, timestamp);
+CREATE TABLE IF NOT EXISTS policies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    name TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    match_type TEXT NOT NULL,
+    action TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    description TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -116,3 +127,66 @@ class EventStore:
                    FROM events WHERE event_type LIKE 'gen_ai.%' GROUP BY model ORDER BY calls DESC LIMIT 20"""
             ).fetchall()
         return {**dict(totals), "models": [dict(row) for row in models]}
+
+    def conversations(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT id, timestamp, trace_id, service, status, tenant_id, user_id_hash,
+                          session_id, conversation_id, duration_ms, attributes_json
+                   FROM events WHERE event_type='gen_ai.chat'
+                   ORDER BY timestamp DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            attributes = json.loads(item.pop("attributes_json"))
+            item.update({
+                "username": attributes.get("enduser.name"),
+                "source_ip": attributes.get("client.address"),
+                "message": attributes.get("lwo.user.message"),
+                "response": attributes.get("lwo.assistant.message"),
+                "model": attributes.get("gen_ai.request.model"),
+                "input_tokens": attributes.get("gen_ai.usage.input_tokens"),
+                "output_tokens": attributes.get("gen_ai.usage.output_tokens"),
+                "policy_action": attributes.get("lwo.policy.action", "allow"),
+                "policy_rule": attributes.get("lwo.policy.rule"),
+            })
+            result.append(item)
+        return result
+
+    def policies(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT * FROM policies ORDER BY updated_at DESC, id DESC").fetchall()
+        return [{**dict(row), "enabled": bool(row["enabled"])} for row in rows]
+
+    def create_policy(self, policy: dict[str, Any]) -> dict[str, Any]:
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """INSERT INTO policies
+                   (created_at,updated_at,name,pattern,match_type,action,enabled,description)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (now, now, policy["name"], policy["pattern"], policy["match_type"], policy["action"],
+                 int(policy["enabled"]), policy["description"]),
+            )
+            policy_id = cursor.lastrowid
+        return next(item for item in self.policies() if item["id"] == policy_id)
+
+    def update_policy(self, policy_id: int, policy: dict[str, Any]) -> dict[str, Any] | None:
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """UPDATE policies SET updated_at=?,name=?,pattern=?,match_type=?,action=?,enabled=?,description=?
+                   WHERE id=?""",
+                (now, policy["name"], policy["pattern"], policy["match_type"], policy["action"],
+                 int(policy["enabled"]), policy["description"], policy_id),
+            )
+        if not cursor.rowcount:
+            return None
+        return next(item for item in self.policies() if item["id"] == policy_id)
+
+    def delete_policy(self, policy_id: int) -> bool:
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute("DELETE FROM policies WHERE id=?", (policy_id,))
+        return bool(cursor.rowcount)

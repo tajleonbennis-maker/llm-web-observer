@@ -1,44 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>LLM Web Observer</title>
-  <link rel="stylesheet" href="/static/styles.css">
-</head>
-<body>
-  <header>
-    <div>
-      <h1>LLM Web Observer</h1>
-      <p>Interaction, agent, model, and tool traces</p>
-    </div>
-    <button id="refresh" title="Refresh traces" aria-label="Refresh traces">↻</button>
-  </header>
-  <main>
-    <section id="metrics" class="metrics" aria-label="Telemetry summary"></section>
-    <div class="workspace">
-      <aside>
-        <div class="section-title">Recent traces</div>
-        <div id="traces" class="trace-list"></div>
-      </aside>
-      <section class="detail">
-        <div id="empty" class="empty">Select a trace to inspect its execution.</div>
-        <div id="trace-detail" hidden>
-          <div class="detail-head">
-            <div>
-              <span class="eyebrow">Trace</span>
-              <h2 id="trace-title"></h2>
-            </div>
-            <span id="trace-status" class="status"></span>
-          </div>
-          <div id="trace-meta" class="trace-meta"></div>
-          <div class="timeline-head"><span>Operation</span><span>Timeline</span><span>Duration</span></div>
-          <div id="timeline" class="timeline"></div>
-          <div id="event-panel" class="event-panel" hidden></div>
-        </div>
-      </section>
-    </div>
-  </main>
-  <script src="/static/app.js"></script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLM Web Observer</title><link rel="stylesheet" href="/static/styles.css"></head><body>
+<header><div><strong>LLM Web Observer</strong><span>Runtime audit console</span></div><button id="refresh">Refresh</button></header>
+<nav><button class="tab active" data-view="overview">Overview</button><button class="tab" data-view="conversations">Conversations</button><button class="tab" data-view="traces">Traces</button><button class="tab" data-view="policies">Policies</button></nav><main>
+<section id="overview" class="view active"><div id="metrics" class="metrics"></div><div class="grid"><article><h2>Recent activity</h2><div id="activity"></div></article><article><h2>Model usage</h2><div id="models"></div></article></div></section>
+<section id="conversations" class="view"><div class="title"><div><h1>Conversations</h1><p>User messages, identity and gateway decisions.</p></div><input id="search" type="search" placeholder="Search user, IP, message or model"></div><article class="scroll"><table><thead><tr><th>Time</th><th>User / IP</th><th>Message</th><th>Model</th><th>Decision</th><th>Latency</th></tr></thead><tbody id="conversation-rows"></tbody></table></article></section>
+<section id="traces" class="view"><div class="title"><div><h1>Traces</h1><p>Execution events with the original stored payload.</p></div></div><div class="trace-grid"><aside id="trace-list"></aside><article id="trace-detail"><div class="empty">Select a trace.</div></article></div></section>
+<section id="policies" class="view"><div class="title"><div><h1>Gateway policies</h1><p>Log, redact or block messages before provider delivery.</p></div><button id="new-policy" class="primary">New policy</button></div><div class="policy-grid"><article id="policy-list"></article><form id="policy-form" hidden><input id="policy-id" type="hidden"><label>Name<input id="policy-name" required></label><label>Description<textarea id="policy-description"></textarea></label><div class="two"><label>Match<select id="policy-match"><option value="contains">Contains</option><option value="regex">Regular expression</option></select></label><label>Action<select id="policy-action"><option value="log">Log</option><option value="redact">Redact</option><option value="block">Block</option></select></label></div><label>Pattern<textarea id="policy-pattern" required class="mono"></textarea></label><label class="check"><input id="policy-enabled" type="checkbox" checked> Enabled</label><div class="actions"><button type="button" id="cancel">Cancel</button><button class="primary">Save policy</button></div></form></div></section>
+</main><dialog id="admin"><form method="dialog"><h2>Administrator authorization</h2><p>A key is required only when changing policies.</p><input id="admin-key" type="password" placeholder="Observer API key"><div class="actions"><button value="cancel">Cancel</button><button value="ok" class="primary">Authorize</button></div></form></dialog><div id="toast"></div><script src="/static/app.js"></script></body></html>

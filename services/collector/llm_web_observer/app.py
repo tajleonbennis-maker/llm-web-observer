@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .models import EventBatch, IngestResult
+from .models import EventBatch, IngestResult, PolicyRule, PolicyRuleRecord
 from .store import EventStore
 
 STATIC = Path(__file__).with_name("static")
@@ -45,6 +45,31 @@ def create_app(database_path: str | None = None) -> FastAPI:
     @app.get("/v1/metrics")
     def metrics() -> dict:
         return app.state.store.metrics()
+
+    @app.get("/v1/conversations")
+    def conversations(limit: int = Query(default=100, ge=1, le=500)) -> list[dict]:
+        return app.state.store.conversations(limit)
+
+    @app.get("/v1/policies", response_model=list[PolicyRuleRecord])
+    def policies() -> list[dict]:
+        return app.state.store.policies()
+
+    @app.post("/v1/policies", response_model=PolicyRuleRecord, dependencies=[Depends(authorize)])
+    def create_policy(policy: PolicyRule) -> dict:
+        return app.state.store.create_policy(policy.model_dump())
+
+    @app.put("/v1/policies/{policy_id}", response_model=PolicyRuleRecord, dependencies=[Depends(authorize)])
+    def update_policy(policy_id: int, policy: PolicyRule) -> dict:
+        updated = app.state.store.update_policy(policy_id, policy.model_dump())
+        if not updated:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return updated
+
+    @app.delete("/v1/policies/{policy_id}", dependencies=[Depends(authorize)])
+    def delete_policy(policy_id: int) -> dict[str, bool]:
+        if not app.state.store.delete_policy(policy_id):
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return {"deleted": True}
 
     @app.get("/", include_in_schema=False)
     def dashboard() -> FileResponse:

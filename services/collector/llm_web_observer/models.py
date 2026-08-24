@@ -44,3 +44,17 @@ class IngestResult(BaseModel):
     accepted: int
     trace_ids: list[str]
 
+
+class PolicyRule(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    pattern: str = Field(min_length=1, max_length=500)
+    match_type: Literal["contains", "regex"] = "contains"
+    action: Literal["log", "redact", "block"] = "log"
+    enabled: bool = True
+    description: str = Field(default="", max_length=500)
+
+
+class PolicyRuleRecord(PolicyRule):
+    id: int
+    created_at: datetime
+    updated_at: datetime
