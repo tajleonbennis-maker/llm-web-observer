@@ -1,8 +1,142 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LLM Web Observer</title><link rel="stylesheet" href="/static/styles.css"><link rel="stylesheet" href="/static/conversation.css"></head><body>
-<header><div><strong>LLM Web Observer</strong><span>Runtime audit console</span></div><button id="refresh">Refresh</button></header>
-<nav><button class="tab active" data-view="overview">Overview</button><button class="tab" data-view="conversations">Conversations</button><button class="tab" data-view="traces">Traces</button><button class="tab" data-view="policies">Policies</button></nav><main>
-<section id="overview" class="view active"><div id="metrics" class="metrics"></div><div class="grid"><article><h2>Recent activity</h2><div id="activity"></div></article><article><h2>Model usage</h2><div id="models"></div></article></div></section>
-<section id="conversations" class="view"><div class="title"><div><h1>Conversations</h1><p>User messages, identity and gateway decisions.</p></div><input id="search" type="search" placeholder="Search user, IP, message or model"></div><article class="scroll"><table><thead><tr><th>Time</th><th>User / IP</th><th>Message</th><th>Model</th><th>Decision</th><th>Latency</th></tr></thead><tbody id="conversation-rows"></tbody></table></article></section>
-<section id="traces" class="view"><div class="title"><div><h1>Traces</h1><p>Execution events with the original stored payload.</p></div></div><div class="trace-grid"><aside id="trace-list"></aside><article id="trace-detail"><div class="empty">Select a trace.</div></article></div></section>
-<section id="policies" class="view"><div class="title"><div><h1>Gateway policies</h1><p>Log, redact or block messages before provider delivery.</p></div><button id="new-policy" class="primary">New policy</button></div><div class="policy-grid"><article id="policy-list"></article><form id="policy-form" hidden><input id="policy-id" type="hidden"><label>Name<input id="policy-name" required></label><label>Description<textarea id="policy-description"></textarea></label><div class="two"><label>Match<select id="policy-match"><option value="contains">Contains</option><option value="regex">Regular expression</option></select></label><label>Action<select id="policy-action"><option value="log">Log</option><option value="redact">Redact</option><option value="block">Block</option></select></label></div><label>Pattern<textarea id="policy-pattern" required class="mono"></textarea></label><label class="check"><input id="policy-enabled" type="checkbox" checked> Enabled</label><div class="actions"><button type="button" id="cancel">Cancel</button><button class="primary">Save policy</button></div></form></div></section>
-</main><dialog id="conversation-detail"><div id="conversation-content"></div><div class="actions"><button id="close-conversation">Close</button></div></dialog><dialog id="admin"><form method="dialog"><h2>Administrator authorization</h2><p>A key is required only when changing policies.</p><input id="admin-key" type="password" placeholder="Observer API key"><div class="actions"><button value="cancel">Cancel</button><button value="ok" class="primary">Authorize</button></div></form></dialog><div id="toast"></div><script src="/static/app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLM Web Observer · 控制台</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/></svg></div>
+    <div>
+      <div class="brand-name">LLM Observer</div>
+      <div class="brand-sub">网关控制台</div>
+    </div>
+  </div>
+  <nav>
+    <button class="nav-item active" data-view="overview"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>仪表盘</button>
+    <button class="nav-item" data-view="live"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>实时监控</button>
+    <button class="nav-item" data-view="search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>事件检索</button>
+    <button class="nav-item" data-view="policies"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/></svg>策略管理</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="live-status" id="conn-status"><span class="dot"></span><span id="conn-label">实时流：连接中</span></div>
+  </div>
+</aside>
+
+<main class="content">
+  <header class="topbar">
+    <div>
+      <h1 id="page-title">仪表盘</h1>
+      <p id="page-sub" class="muted">实时观测每一次 LLM 调用</p>
+    </div>
+    <div class="topbar-right">
+      <span id="clock" class="muted"></span>
+      <button id="config-key" class="btn">API Key</button>
+      <button id="refresh" class="btn">刷新</button>
+    </div>
+  </header>
+
+  <section id="overview" class="view active">
+    <div id="metrics" class="metric-grid"></div>
+    <div class="grid-2">
+      <article class="card">
+        <div class="card-head"><h2>最近活动</h2></div>
+        <div id="activity" class="list"></div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2>模型用量</h2></div>
+        <div id="models" class="list"></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="live" class="view">
+    <article class="card fill">
+      <div class="card-head">
+        <h2>实时事件流</h2>
+        <span class="muted" id="live-count">0 条</span>
+      </div>
+      <div id="live-stream" class="live-stream"></div>
+    </article>
+  </section>
+
+  <section id="search" class="view">
+    <article class="card fill">
+      <div class="search-form">
+        <div class="field grow"><label>关键词</label><input id="f-q" type="search" placeholder="消息、回复、用户或模型"></div>
+        <div class="field"><label>用户</label><input id="f-user" type="text" placeholder="用户名 / ID"></div>
+        <div class="field"><label>模型</label><input id="f-model" type="text" placeholder="如 deepseek"></div>
+        <div class="field"><label>决策</label>
+          <select id="f-action"><option value="">全部</option><option value="allow">放行</option><option value="redact">脱敏</option><option value="block">阻断</option></select>
+        </div>
+        <div class="field"><label>方向</label>
+          <select id="f-direction"><option value="">全部</option><option value="user.chat">用户消息</option><option value="internal.recommendations">内部推荐</option><option value="internal.title">自动标题</option></select>
+        </div>
+        <div class="field"><label>起始时间</label><input id="f-since" type="datetime-local"></div>
+        <div class="field"><label>结束时间</label><input id="f-until" type="datetime-local"></div>
+        <div class="actions"><button id="btn-search" class="btn primary">检索</button><button id="btn-reset" class="btn">重置</button></div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>时间</th><th>用户</th><th>消息</th><th>回复</th><th>模型</th><th>决策</th><th>耗时</th></tr></thead>
+          <tbody id="search-rows"></tbody>
+        </table>
+      </div>
+      <div class="pager"><span id="page-info" class="muted"></span><div class="pager-btns"><button id="prev-page" class="btn">上一页</button><button id="next-page" class="btn">下一页</button></div></div>
+    </article>
+  </section>
+
+  <section id="policies" class="view">
+    <article class="card fill">
+      <div class="card-head">
+        <h2>网关策略</h2>
+        <button id="new-policy" class="btn primary">新建策略</button>
+      </div>
+      <p class="hint">策略在请求方向（用户 → 模型）和响应方向（模型 → 用户）分别生效。阻断会拦截流量，脱敏会替换内容。</p>
+      <div id="policy-list" class="policy-list"></div>
+    </article>
+  </section>
+</main>
+
+<dialog id="detail-dialog" class="modal">
+  <div class="modal-head"><h2 id="detail-title">对话详情</h2><button class="modal-close" data-close>✕</button></div>
+  <div id="detail-body" class="modal-body"></div>
+</dialog>
+
+<dialog id="policy-dialog" class="modal">
+  <div class="modal-head"><h2 id="policy-title">新建策略</h2><button class="modal-close" data-close>✕</button></div>
+  <form id="policy-form" class="modal-body">
+    <input id="policy-id" type="hidden">
+    <div class="field"><label>策略名称</label><input id="policy-name" required placeholder="如：拦截银行卡号"></div>
+    <div class="field"><label>说明</label><input id="policy-description" placeholder="可选"></div>
+    <div class="row-3">
+      <div class="field"><label>匹配方式</label><select id="policy-match"><option value="contains">包含文本</option><option value="regex">正则表达式</option></select></div>
+      <div class="field"><label>动作</label><select id="policy-action"><option value="log">仅记录</option><option value="redact">脱敏</option><option value="block">阻断</option></select></div>
+      <div class="field"><label>生效方向</label><select id="policy-direction"><option value="request">用户 → 模型</option><option value="response">模型 → 用户</option><option value="both">双向</option></select></div>
+    </div>
+    <div class="field"><label>匹配内容</label><textarea id="policy-pattern" required class="mono" placeholder="要匹配的文本或正则"></textarea></div>
+    <label class="check"><input id="policy-enabled" type="checkbox" checked> 启用</label>
+    <div class="modal-actions"><button type="button" class="btn" data-close>取消</button><button type="submit" class="btn primary">保存</button></div>
+  </form>
+</dialog>
+
+<dialog id="key-dialog" class="modal">
+  <div class="modal-head"><h2>配置 API Key</h2><button class="modal-close" data-close>✕</button></div>
+  <div class="modal-body">
+    <p class="muted" style="margin-bottom:14px">实时监控与修改策略需要 Observer API Key。Key 仅保存在当前浏览器会话，不会上传。</p>
+    <div class="field"><label>Observer API Key</label><input id="admin-key" type="password" placeholder="粘贴 API Key" autocomplete="off"></div>
+    <div id="key-status" class="muted" style="font-size:12px;margin-top:8px"></div>
+    <div class="modal-actions">
+      <button type="button" id="cancel-key" class="btn">取消</button>
+      <button type="button" id="save-key" class="btn primary">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
