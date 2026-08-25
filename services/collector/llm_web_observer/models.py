@@ -61,6 +61,7 @@ class PolicyRule(BaseModel):
     pattern: str = Field(min_length=1, max_length=500)
     match_type: Literal["contains", "regex"] = "contains"
     action: Literal["log", "redact", "block"] = "log"
+    direction: Literal["request", "response", "both"] = "request"
     enabled: bool = True
     description: str = Field(default="", max_length=500)
 
